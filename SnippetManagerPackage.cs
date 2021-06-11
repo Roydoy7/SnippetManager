@@ -1,4 +1,5 @@
 ﻿using Microsoft.VisualStudio.Shell;
+using SnippetManager.Components;
 using System;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -30,7 +31,7 @@ namespace SnippetManager
     public sealed class SnippetManagerPackage : AsyncPackage
     {
         /// <summary>
-        /// SnippletManagerPackage GUID string.
+        /// SnippetManagerPackage GUID string.
         /// </summary>
         public const string PackageGuidString = "efae545a-48ba-48e7-99ee-66253c487e47";
 
@@ -50,6 +51,7 @@ namespace SnippetManager
             await this.JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
             await SnippetWindowCommand.InitializeAsync(this);
             AssemblyLoader.LoadAssembly();
+            CodeDataMethods.EnsureFolderExist();
         }
 
         #endregion

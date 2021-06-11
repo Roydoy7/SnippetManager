@@ -1,9 +1,9 @@
 ﻿using Microsoft.VisualStudio.Shell;
 using PropertyChanged;
 using SnippetManager.Commands;
+using SnippetManager.Components;
 using SnippetManager.Models;
 using SnippetManager.Policies;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
@@ -16,7 +16,6 @@ namespace SnippetManager.ViewModels
 {
     public class SnippetWindowControlViewModel : ViewModelBase
     {
-        public string FolderPath { get; set; }
         [OnChangedMethod(nameof(RefreshView))]
         public string Keyword { get; set; }
         public CodeData SelectedItem { get; set; }
@@ -26,44 +25,42 @@ namespace SnippetManager.ViewModels
 
         public SnippetWindowControlViewModel()
         {
-            FolderPath = PathPolicy.FolderPath;
-            Directory.CreateDirectory(FolderPath);
-            InitFileSystemWatcher(FolderPath);
-            InitCodeDatas(FolderPath);
+            InitFileSystemWatcher();
+            InitCodeDatas();
         }
 
         private void FileSystemWatcher_CreateOrDelete(object sender, FileSystemEventArgs e)
         {
             var filePath = e.FullPath;
             if (e.ChangeType == WatcherChangeTypes.Created)
-                AddCodeData(filePath);
+                AddCodeData(CodeDataMethods.GetCodeData(filePath));
             else if (e.ChangeType == WatcherChangeTypes.Deleted)
                 RemoveCodeData(filePath);
         }
 
-        private void InitFileSystemWatcher(string folderPath)
+        private void InitFileSystemWatcher()
         {
+            var folderPath = PathPolicy.FolderPath;
             FileSystemWatcher = new FileSystemWatcher(folderPath);
-            FileSystemWatcher.Filter = "*.cs";
+            FileSystemWatcher.Filter = "*" + NamePolicy.Extension;
             FileSystemWatcher.Created += FileSystemWatcher_CreateOrDelete;
             FileSystemWatcher.Deleted += FileSystemWatcher_CreateOrDelete;
             FileSystemWatcher.EnableRaisingEvents = true;
         }
 
-        private void InitCodeDatas(string folderPath)
+        private void InitCodeDatas()
         {
-            foreach (var filePath in Directory.GetFiles(folderPath, "*.cs"))
-            {
-                AddCodeData(filePath);
-            }
+            foreach (var data in CodeDataMethods.GetCodeDatas())
+                AddCodeData(data);
             CodeDataView = CollectionViewSource.GetDefaultView(CodeDatas);
-            CodeDataView.Filter = Filter;
+            if (CodeDataView != null)
+                CodeDataView.Filter = Filter;
         }
 
         private bool Filter(object obj)
         {
             if (string.IsNullOrEmpty(Keyword)) return true;
-            if(obj is CodeData data)
+            if (obj is CodeData data)
             {
                 if (data.Name.ToUpper().Contains(Keyword.ToUpper()))
                     return true;
@@ -78,58 +75,39 @@ namespace SnippetManager.ViewModels
             CodeDataView.Refresh();
         }
 
-        private void AddCodeData(string filePath)
+        private void AddCodeData(CodeData data)
         {
-            var fileName = Path.GetFileNameWithoutExtension(filePath);
-            var content = File.ReadAllText(filePath);
-            if (!CodeDatas.Any(x => x.Name == fileName))
+            if (!CodeDatas.Any(x => x.FileName == data.FileName))
             {
-                ThreadHelper.JoinableTaskFactory.Run(async delegate {
+                ThreadHelper.JoinableTaskFactory.Run(async delegate
+                {
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                    CodeDatas.Add(new CodeData { Name = fileName, Content = content });
+                    CodeDatas.Add(data);
                 });
             }
         }
 
         private void RemoveCodeData(string filePath)
         {
-            var fileName = Path.GetFileNameWithoutExtension(filePath);
-            var target = CodeDatas.FirstOrDefault(x => x.Name == fileName);
+            var fileName = Path.GetFileName(filePath);
+            var target = CodeDatas.FirstOrDefault(x => x.FileName == fileName);
             if (target != null)
             {
-                ThreadHelper.JoinableTaskFactory.Run(async delegate {
+                ThreadHelper.JoinableTaskFactory.Run(async delegate
+                {
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                     CodeDatas.Remove(target);
                 });
             }
         }
 
-        private void ModifyCodeData(CodeData data)
-        {
-            var filePath = Path.Combine(FolderPath, data.Name + ".cs");
-            File.WriteAllText(filePath, data.Content);
-        }
-
-        private void DeleteCodeDataFile(string name)
-        {
-            var filePath = Path.Combine(FolderPath, name + ".cs");
-            File.Delete(filePath);
-        }
-
-        private void CreateCodeDataFile(CodeData data)
-        {
-            var filePath = Path.Combine(FolderPath, data.Name + ".cs");
-            File.WriteAllText(filePath, data.Content);
-        }
-
         public ICommand AddCommand => new RelayCommand(o =>
         {
             var vm = new SnippetAddFormViewModel();
-            vm.Names = CodeDatas.Select(x => x.Name).ToList();
             vm.ShowDialog();
 
             if (vm.DialogResult == false) return;
-            CreateCodeDataFile(vm.CodeData);
+            CodeDataMethods.CreateCodeDataFile(vm.CodeData);
         });
 
         public ICommand DeleteCommand => new RelayCommand(o =>
@@ -137,19 +115,29 @@ namespace SnippetManager.ViewModels
             if (SelectedItem == null) return;
             if (MessageBox.Show("Do you want to delete?", "Question", MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK)
                 return;
-            DeleteCodeDataFile(SelectedItem.Name);
+            CodeDataMethods.DeleteCodeDataFile(SelectedItem.FileName);
         });
 
         public ICommand CopyCommand => new RelayCommand(o =>
         {
             if (SelectedItem == null) return;
+            if (SelectedItem.Content == null) return;
             Clipboard.SetText(SelectedItem.Content);
         });
 
         public ICommand SaveCommand => new RelayCommand(o =>
         {
             foreach (var data in CodeDatas)
-                ModifyCodeData(data);
+                CodeDataMethods.ModifyCodeData(data);
+        });
+
+        public ICommand RenameCommand => new RelayCommand(o=> {
+            if (SelectedItem == null) return;
+            var vm = new SnippetRenameFormViewModel();
+            vm.Name = SelectedItem.Name;
+            vm.ShowDialog();
+            if (vm.DialogResult)
+                SelectedItem.Name = vm.Name;
         });
     }
 }

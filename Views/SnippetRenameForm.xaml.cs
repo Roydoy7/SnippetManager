@@ -3,11 +3,11 @@
 namespace SnippetManager.Views
 {
     /// <summary>
-    /// SnippetAddForm.xaml 的交互逻辑
+    /// SnippetRenameForm.xaml 的交互逻辑
     /// </summary>
-    public partial class SnippetAddForm : Window
+    public partial class SnippetRenameForm : Window
     {
-        public SnippetAddForm()
+        public SnippetRenameForm()
         {
             InitializeComponent();
         }

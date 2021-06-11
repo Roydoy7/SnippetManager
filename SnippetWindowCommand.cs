@@ -2,9 +2,6 @@
 using Microsoft.VisualStudio.Shell.Interop;
 using System;
 using System.ComponentModel.Design;
-using System.Globalization;
-using System.Threading;
-using System.Threading.Tasks;
 using Task = System.Threading.Tasks.Task;
 
 namespace SnippetManager
@@ -71,7 +68,7 @@ namespace SnippetManager
         /// <param name="package">Owner package, not null.</param>
         public static async Task InitializeAsync(AsyncPackage package)
         {
-            // Switch to the main thread - the call to AddCommand in SnippletWindowCommand's constructor requires
+            // Switch to the main thread - the call to AddCommand in SnippetWindowCommand's constructor requires
             // the UI thread.
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(package.DisposalToken);
 
